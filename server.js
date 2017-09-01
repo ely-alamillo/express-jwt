@@ -42,6 +42,23 @@ const sendUserError = (err, res) => {
   res.json(err);
 };
 
+const verifyUser = (req, res, next) => {
+  console.log('middleware hit');
+  const token = req.body.token || req.query.token || req.headers['x-access-token'];
+  if (!token) {
+    sendUserError('the token was not provided', res);
+    return;
+  }
+  jwt.verify(token, 'secret', (err, decodedToken) => {
+    if (err) {
+      sendUserError('token not valid', res);
+      return;
+    }
+    req.decoded = decodedToken;
+    next();
+  });
+};
+
 // add the routes
 
 app.get('/', (req, res) => {
@@ -66,7 +83,24 @@ app.get('/setup', (req, res) => {
 // API ROUTES -------------------
 var apiRoutes = express.Router();
 
+apiRoutes.post('/signup', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    sendUserError('provide username and password', res);
+    return;
+  }
+  const user = new User({ username, password });
+  user.save((saveErr) => {
+    if (saveErr) {
+      sendUserError(saveErr, res);
+      return;
+    }
+    res.json({ message: 'new user has been created'})
+  })
+});
+
 apiRoutes.post('/authenticate', (req, res) => {
+  console.log(req.body);
   const { username, password } = req.body;
   console.log(username);
   User.findOne({ username }, (err, user) => {
@@ -83,28 +117,12 @@ apiRoutes.post('/authenticate', (req, res) => {
     res.json({ message: 'here is a token', token });
   });
 });
-// this is the middleware for the token auth
-apiRoutes.use((req, res, next) => {
-  const token = req.body.token || req.query.token || req.headers['x-access-token'];
-  if (!token) {
-    sendUserError('the token was not provided', res);
-    return;
-  }
-  jwt.verify(token, 'secret', (err, decodedToken) => {
-    if (err) {
-      sendUserError('token not valid', res);
-      return;
-    }
-    req.decoded = decodedToken;
-    next();
-  });
-});
 
 apiRoutes.get('/', (req, res) => {
   res.json({ message: 'we are in the app root'})
 })
 
-apiRoutes.get('/showAllUsers', (req, res) => {
+apiRoutes.get('/showAllUsers', verifyUser, (req, res) => {
   User.find({}, (err, users) => {
     if (err) {
       // sendUserError(err, res);
@@ -122,6 +140,6 @@ app.use('/api', apiRoutes);
 
 
 // show that it works
-app.listen(3000, () => {
-  console.log('listening on port 3000');
+app.listen(3030, () => {
+  console.log('listening on port 3030');
 });
